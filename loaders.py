@@ -1,8 +1,12 @@
 import os
+from sklearn.base import BaseEstimator
 import yaml
 import logging
 from pydantic import BaseModel, StringConstraints, ValidationError, field_validator, constr
 from typing import Annotated, Dict, Union, Optional, Any
+from torch import nn
+import torch
+import joblib
 from experiment import ExperimentMetadata
 
 
@@ -13,7 +17,7 @@ class ExperimentMetadataLoader():
     curr_metadata: Optional[ExperimentMetadata] = None
 
     def  __init__(self):
-        self.super().__init__()
+        pass
 
     def load_from_path(self, path: str) -> ExperimentMetadata:
         """
@@ -84,3 +88,55 @@ class ExperimentMetadataLoader():
             logging.warning(f'Failed to validate metadata at path: {path}. Error: {e}')
             return False
         return True
+
+class ModelLoader(BaseModel):
+    """
+    Logic for loading models (Scikit-Learn, PyTorch APIs) from disk to memory.
+    Load method is determined using file extesion: .pt/.pth = PyTorch, .skl = Scikit-Learn
+    Saving is done to: .pt (torch.jit) - PyTorch, .skl (joblib) - Scikit-Learn
+    """
+    # Necessary input for savefile naming
+    _savefile_basename: Annotated[str, StringConstraints(min_length=1)]
+    # Attributes for storing data (produced while working)
+    _curr_model: Optional[Union[nn.Module, BaseEstimator]] = None
+    _curr_model_path: Optional[Annotated[str, StringConstraints(min_length=1)]] = None
+
+    def __init__(self,  savefile_basename: str = 'model'):
+        super().__init__(savefile_basename=savefile_basename)
+
+    def load_from_path(self, path: str) -> Union[nn.Module, BaseEstimator]:
+        filename = os.path.basename(path)
+        file_extension = os.path.splitext(filename)
+        if file_extension in ('.pth', '.pt'):
+            model = torch.jit.load(path)
+        if file_extension == '.skl':
+            model = joblib.load(path)
+        else:
+            raise ValueError(f"Unsupported file extension: {file_extension} when loading from {path}. Expecting: .pt, .pth or .skl.")
+        self._curr_model = model
+        self._curr_model_path = path
+        return model
+    
+    def get_model(self) -> Union[nn.Module, BaseEstimator]:
+        """Return currently loaded model."""
+        self._curr_model
+
+    def save_to_dir(self, model: Union[nn.Module, BaseEstimator], dir_path: str, file_basename: str = None) -> str:
+        """
+        Save model object to disk using appropriate method (torch.jit.save or joblib.dump).
+        Can provide custom file base name (name without extension).
+        Returns:
+            Path to saved model file.
+        """
+        file_basename = self._savefile_basename if file_basename is None else file_basename 
+        if isinstance(model, nn.Module):
+            save_path = os.path.join(dir_path, file_basename + ".pt")
+            model_scripted = torch.jit.script(model)
+            model_scripted.save(save_path)
+            return save_path
+        elif isinstance(model, BaseEstimator):
+            save_path = os.path.join(dir_path, file_basename + ".skl")
+            joblib.dump(model, save_path)
+            return save_path
+        else:
+            raise ValueError(f"Unsupported model type: {type(model)}. Expecting: nn.Module or BaseEstimator.")
