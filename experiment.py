@@ -180,3 +180,39 @@ class Experiment(BaseModel):
         
     def get_model_obj(self):
         return self.model
+
+class ExperimentMetadata(BaseModel):
+    """In-memory representation of an experiment's metadata file with validation."""
+    name: Optional[str] = None
+    origin_experiment_id: Optional[UUID] = None
+    parent_experiment_id: Optional[UUID] = None
+    model_filename: Annotated[str, StringConstraints(min_length=1)]
+    # model_api_type: Annotated[str, StringConstraints(min_length=1)]
+    template_flg: bool
+
+    def safe_setattr(self, key, value):
+        # TODO: idk, either add type check or delete method - not used now
+        if key in self.valid_attributes:
+            setattr(self, key, value)
+        else:
+            raise AttributeError(f"Cannot set non-existent attribute '{key}' to ExperimentMetadata object.")
+
+    def get_metadata_dict(self):
+        return {
+            'name': self.name,
+            'origin_experiment_id': self.origin_experiment_id,
+            'parent_experiment_id': self.parent_experiment_id,
+            'model_filename': self.model_filename,
+            # 'model_api_type': self.model_api_type,
+            'template_flg': self.template_flg
+        }
+    
+    def get_metadata_attr_names(self):
+        return [
+            'name', 
+            'origin_experiment_id', 
+            'parent_experiment_id',
+            'model_filename', 
+            # 'model_api_type', 
+            'template_flg'
+        ]
