@@ -1,23 +1,44 @@
 from uuid import UUID
-from typing import Union, Iterable, Tuple
+from typing import Union, Iterable, Tuple, Dict, Any, Optional, Annotated
 from sklearn.base import BaseEstimator
 from torch.nn import Module
 from torch import nn, tensor, float32
 from torch.nn.modules.loss import _Loss
 from torch import optim
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 from tqdm import tqdm
 import torch
 import numpy as np
 
 
 class Experiment(BaseModel):
-    # TODO: make this a Singleton-like class. It stores all unique experiment_id that were used to create an instance.
-    # If an instance is created with an existing experiment_id, it should return the existing instance.
-    
+    """
+    Logic for training model, outputting predictions.
+    Signleton-like pattern to avoid parallel access to a model.
+    """
+    # Exclude from pydantic validation using Optional
+    ## Attributes for instantiation pattern
+    _instances: Optional[Dict[UUID, 'Experiment']] = dict()
+    _initialized: Optional[bool] = False
+
+    # Necessary user input
     id: UUID
     model: Union[BaseEstimator, Module]
 
+    def __new__(cls, id: UUID, *args, **kwargs):
+        if id not in cls._instances:
+            instance = super(Experiment, cls).__new__(cls)
+            cls._instances[id] = instance
+            # instance.root_directory = root_directory
+        return cls._instances[id]
+
+    def __init__(self, id: UUID, model: Union[BaseEstimator, Module]):
+        # Prevent re-initialization of already created instances
+        if not self._initialized:
+            # Validate user input and set attributes
+            super().__init__(id=id, model=model)
+            self._initialized = True
+    
     def fit(self, X_train: Iterable, y_train: Iterable, params: dict = None, loss: str = 'mse', optim: str = 'adam', optim_args: dict = dict(), epochs: int = 10) -> None:
         """
         Trains a given model (either Scikit-Learn or PyTorch) on the provided data.
@@ -122,6 +143,7 @@ class Experiment(BaseModel):
         criterion = Experiment._get_torch_loss(loss)
         optimizer = Experiment._get_torch_optimizer(optim, model.parameters(), optim_args)
 
+        model.train()
         # Training loop
         print(f"Training PyTorch model (epochs = {epochs})")
         for epoch in tqdm(range(epochs)):
@@ -139,13 +161,22 @@ class Experiment(BaseModel):
     def _fit_sklearn(model: BaseEstimator,  X_train: Iterable, y_train: Iterable, params: dict = dict()) -> None:
         # Handle model parameters
         if params:
-            assert isinstance(params, dict),  "params must be a dict"
             model.set_params(**params)
-
         model.fit(X_train, y_train)
 
-    def predict(X_test: Iterable) -> np.ndarray:
-        pass
+    def predict(self, X_test: Iterable) -> np.ndarray:
+        if isinstance(self.model, nn.Module):
+            self.model.eval()
+            X_tensor = tensor(X_test, dtype=float32)
+            predict =  self.model(X_tensor)
+            predict = predict.detach().cpu().numpy()
+            return predict
+        elif isinstance(self.model, BaseEstimator) : 
+            predict = self.model.predict(X_test)
+            predict = np.array(predict)
+            return predict
+        else:
+            raise ValueError("Model must be either PyTorch (nn.Module) or Scikit-learn (BaseEstimator) model")
         
     def get_model_obj(self):
         return self.model
