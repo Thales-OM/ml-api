@@ -48,15 +48,17 @@ class Experiment(BaseModel):
             y_train (Iterable): Target values for training.
             params (dict): Parameters for training - attributes that are set to model object (includes loss/criterion for Scikit-Learn API).
             loss (str): Loss function for training - only applicable for PyTorch models.
+            optim (str): Optimizer name - only applicable for PyTorch models.
+            optim_args (dict): Parameters for PyTorch optimizer - only applicable for PyTorch models.
             epochs (int): Number of epochs for training - only applicable for PyTorch models.
 
         Returns:
             Trained model.
         """
         if isinstance(self.model, BaseEstimator):
-            self._fit_sklearn(self.model, X_train, y_train, params)
+            self._fit_sklearn(model=self.model, X_train=X_train, y_train=y_train, params=params)
         elif isinstance(self.model, Module):
-            self._train_torch(self.model, X_train, y_train, params, loss, optim, epochs)
+            self._train_torch(model=self.model, X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)
         else:
             raise ValueError("Model must be either a Scikit-Learn estimator or a PyTorch module.")
 
@@ -165,6 +167,9 @@ class Experiment(BaseModel):
         model.fit(X_train, y_train)
 
     def predict(self, X_test: Iterable) -> np.ndarray:
+        """
+        Outputs model predictions.
+        """
         if isinstance(self.model, nn.Module):
             self.model.eval()
             X_tensor = tensor(X_test, dtype=float32)
