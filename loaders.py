@@ -89,7 +89,7 @@ class ExperimentMetadataLoader():
             return False
         return True
 
-class ModelLoader(BaseModel):
+class ModelLoader():
     """
     Logic for loading models (Scikit-Learn, PyTorch APIs) from disk to memory.
     Load method is determined using file extesion: .pt/.pth = PyTorch, .skl = Scikit-Learn
@@ -102,17 +102,18 @@ class ModelLoader(BaseModel):
     _curr_model_path: Optional[Annotated[str, StringConstraints(min_length=1)]] = None
 
     def __init__(self,  savefile_basename: str = 'model'):
-        super().__init__(savefile_basename=savefile_basename)
+        # super().__init__(_savefile_basename=savefile_basename)
+        self._savefile_basename = savefile_basename
 
     def load_from_path(self, path: str) -> Union[nn.Module, BaseEstimator]:
         filename = os.path.basename(path)
-        file_extension = os.path.splitext(filename)
+        file_extension = os.path.splitext(filename)[1]
         if file_extension in ('.pth', '.pt'):
             model = torch.jit.load(path)
-        if file_extension == '.skl':
+        elif file_extension == '.skl':
             model = joblib.load(path)
         else:
-            raise ValueError(f"Unsupported file extension: {file_extension} when loading from {path}. Expecting: .pt, .pth or .skl.")
+            raise ValueError(f'Unsupported file extension: "{file_extension}" when loading from {path}. Expecting: .pt, .pth or .skl.')
         self._curr_model = model
         self._curr_model_path = path
         return model

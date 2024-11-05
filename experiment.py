@@ -9,9 +9,10 @@ from pydantic import BaseModel, StringConstraints
 from tqdm import tqdm
 import torch
 import numpy as np
+import random
 
 
-class Experiment(BaseModel):
+class Experiment():
     """
     Logic for training model, outputting predictions.
     Signleton-like pattern to avoid parallel access to a model.
@@ -36,8 +37,17 @@ class Experiment(BaseModel):
         # Prevent re-initialization of already created instances
         if not self._initialized:
             # Validate user input and set attributes
-            super().__init__(id=id, model=model)
+            # super().__init__(id=id, model=model)
+            self.id = id
+            self.model = model
             self._initialized = True
+    
+    @staticmethod
+    def seed(value: Any) -> None:
+        """Ensures reproducibility by setting seed for all used libraries"""
+        np.random.seed(value)
+        random.seed(value)
+        torch.manual_seed(value)
     
     def fit(self, X_train: Iterable, y_train: Iterable, params: dict = None, loss: str = 'mse', optim: str = 'adam', optim_args: dict = dict(), epochs: int = 10) -> None:
         """
@@ -64,16 +74,29 @@ class Experiment(BaseModel):
 
     @staticmethod
     def _get_torch_loss(loss_name: str) -> _Loss:
-        # Map string loss function names to PyTorch loss functions
+        """
+        Returns a PyTorch loss (criterion) object based on the given name.
+
+        Args:
+            loss_name (str): The name of the optimizer (e.g., 'mse', 'cross_entropy').
+
+        Returns:
+            torch.nn.modules.loss._Loss: An instance of the specified loss (criterion) class.
+        
+        Raises:
+            ValueError: If the loss name is not recognized.
+        """
+        # Map string loss function names to PyTorch loss classes
         loss_functions = {
-            'mse': nn.MSELoss(),
-            'mae': nn.L1Loss(),
-            'bce': nn.BCELoss(),
-            'cross_entropy': nn.CrossEntropyLoss(),
-            'huber': nn.HuberLoss()
+            'mse': nn.MSELoss,
+            'mae': nn.L1Loss,
+            'bce': nn.BCELoss,
+            'cross_entropy': nn.CrossEntropyLoss,
+            'huber': nn.HuberLoss
         }
+        # Instantiate and return criterion
         if loss_name in loss_functions:
-            return loss_functions[loss_name]
+            return loss_functions[loss_name]()
         else:
             raise ValueError(f"Unsupported loss function: {loss_name}. Choose from {list(loss_functions.keys())}.")
         
@@ -112,7 +135,7 @@ class Experiment(BaseModel):
         else:
             optimizer_args = dict()
         
-        # Get the optimizer instance
+        # Instantiate and return optimizer
         optimizer = optimizers[optimizer_name](model_parameters, **optimizer_args)
         return optimizer
 

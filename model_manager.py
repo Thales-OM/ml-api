@@ -18,7 +18,7 @@ import numpy as np
 TEMPLATES_DIR_PATH = './template_experiments'
 
 
-class ModelManager(BaseModel):
+class ModelManager():
     """
         Abstraction layer class to hide backend for loading/storing/saving/logging ml models (supoport for sklear/pytorch APIs).
         Signleton-like pattern to avoid parallel local model storage access.
@@ -44,22 +44,25 @@ class ModelManager(BaseModel):
     _model_savefile_basename: Annotated[str, StringConstraints(min_length=1)]
 
 
-    def __new__(cls, _root_directory: str, *args, **kwargs):
-        if _root_directory not in cls._instances:
+    def __new__(cls, root_directory: str, *args, **kwargs):
+        if root_directory not in cls._instances:
             instance = super(ModelManager, cls).__new__(cls)
-            cls._instances[_root_directory] = instance
+            cls._instances[root_directory] = instance
             # instance.root_directory = root_directory
-        return cls._instances[_root_directory]
+        return cls._instances[root_directory]
 
-    def __init__(self, _root_directory, _metadata_filename: str = 'metadata', _model_savefile_basename: str = 'model'):
+    def __init__(self, root_directory: str, metadata_filename: str = 'metadata', model_savefile_basename: str = 'model'):
         # Prevent re-initialization of already created instances
         if not self._initialized:
             # Set necessary attributes within classs
             self._metadata_loader = ExperimentMetadataLoader()
-            self._model_loader = ModelLoader(savefile_basename=_model_savefile_basename)
+            self._model_loader = ModelLoader(savefile_basename=model_savefile_basename)
             # Validate user input and set attributes
-            super().__init__(_root_directory=_root_directory, _metadata_filename=_metadata_filename, _model_savefile_basename=_model_savefile_basename)
-            print(f"Initializing ModelManager within project root: {_root_directory}")
+            # super().__init__(_root_directory=root_directory, _metadata_filename=metadata_filename, _model_savefile_basename=model_savefile_basename)
+            self._root_directory = root_directory
+            self._metadata_filename = metadata_filename
+            self._model_savefile_basename = model_savefile_basename
+            print(f"Initializing ModelManager within project root: {self._root_directory}")
             self._initialize_project()
             self._initialized = True
     
@@ -139,17 +142,19 @@ class ModelManager(BaseModel):
             return False
         return True
 
-    def branch_experiment(self, base_experiment_id: UUID, name: str = None) -> None:
+    def branch_experiment(self, base_experiment_id: UUID, name: str = None) -> UUID:
         """
         Generate new experiment (model instance + metadata) from an existing one.
         Saves to disk.
+        Returns:
+            ID of the new experiment
         """
         # Generate new ID
         new_experiment_id = ModelManager._generate_experiment_id()
         # Create new experiment metadata
         base_experiment_path = self._get_existing_experiment_path(base_experiment_id)
         base_metadata_path = os.path.join(base_experiment_path, self._metadata_filename)
-        metadata = self._read_metadata_file(base_metadata_path)
+        metadata = self._metadata_loader._read_metadata_file(base_metadata_path)
         new_metadata = metadata.copy()
         new_metadata['name'] = name
         new_metadata['origin_experiment_id'] = base_experiment_id
@@ -164,8 +169,9 @@ class ModelManager(BaseModel):
         self._metadata_loader._write_metadata_file(new_metadata_path, new_metadata)
         # Update info about experiments on disk
         self._experiments_on_disk[new_experiment_id] = {'path': new_experiment_path, 'metadata': new_metadata}
+        return new_experiment_id
 
-    def _safe_copy_experiment_directory(base_path: str, new_path: str, overwrite: bool = False) -> None:
+    def _safe_copy_experiment_directory(self, base_path: str, new_path: str, overwrite: bool = False) -> None:
         """Method for safely copying an experiment directory during new experiment creation."""
         # Check if the source directory exists
         if not os.path.exists(base_path):
@@ -229,7 +235,7 @@ class ModelManager(BaseModel):
         """
         Creates a new experiment from a locally provided data.
         Returns:
-            Created experiment path
+            Created experiment ID.
         """
         new_experiment_id = self._generate_experiment_id()
         new_experiment_path = self._produce_experiment_path(new_experiment_id)
@@ -241,7 +247,7 @@ class ModelManager(BaseModel):
         self._metadata_loader._write_metadata_file(path=new_metadata_path, metadata=new_metadata.get_metadata_dict())
         self._experiments_on_disk[new_experiment_id] = {'path': new_experiment_path, 'metadata': new_metadata.get_metadata_dict()}
         logging.info(f'New experiment created (ID={new_experiment_id})(method=local)')
-        return new_experiment_path
+        return new_experiment_id
 
     def save_experiment(self):
         """Commit current Experiment state, overwrites experiment directory contents"""
@@ -253,7 +259,12 @@ class ModelManager(BaseModel):
         metadata = ExperimentMetadata(**self._experiments_on_disk[current_experiment_id]['metadata'])
         metadata.safe_setattr(key='model_filename', value=current_model_filename)
         self._experiments_on_disk[current_experiment_id]['metadata'] = metadata.get_metadata_dict()
-        
+    
+    @staticmethod
+    def seed(value: Any) -> None:
+        """Set random seed for reproducibility"""
+        Experiment.seed(value=value)
+
     def fit(self, X_train: Iterable, y_train: Iterable, params: dict = None, loss: str = 'mse', optim: str = 'adam', optim_args: dict = dict(), epochs: int = 10) -> None:
         """
         Trains the model in the currently selected Experiment (either Scikit-Learn or PyTorch) on the provided data.
@@ -277,3 +288,11 @@ class ModelManager(BaseModel):
         Outputs predictions from the model in the currently loaded Experiment.
         """
         return self._current_experiment.predict(X_test=X_test)
+    
+    def get_experiments_on_disk(self):
+        """Return data about existing experiment directories on disk"""
+        return self._experiments_on_disk
+    
+    def get_project_path(self):
+        """Return path to the root project directory"""
+        return self._root_directory
