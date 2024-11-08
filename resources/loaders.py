@@ -7,7 +7,7 @@ from typing import Annotated, Dict, Union, Optional, Any
 from torch import nn
 import torch
 import joblib
-from experiment import ExperimentMetadata
+from .experiment import ExperimentMetadata
 
 
 class ExperimentMetadataLoader():

@@ -10,6 +10,7 @@ from tqdm import tqdm
 import torch
 import numpy as np
 import random
+from datetime import datetime
 
 
 class Experiment():
@@ -41,6 +42,7 @@ class Experiment():
             self.id = id
             self.model = model
             self._initialized = True
+            self.status = 'Ready'
     
     @staticmethod
     def seed(value: Any) -> None:
@@ -217,6 +219,8 @@ class ExperimentMetadata(BaseModel):
     model_filename: Annotated[str, StringConstraints(min_length=1)]
     # model_api_type: Annotated[str, StringConstraints(min_length=1)]
     template_flg: bool
+    created_dttm: Optional[datetime] = None
+    last_changed_dttm: Optional[datetime] = None
 
     def safe_setattr(self, key, value):
         # TODO: idk, either add type check or delete method - not used now
@@ -232,7 +236,9 @@ class ExperimentMetadata(BaseModel):
             'parent_experiment_id': self.parent_experiment_id,
             'model_filename': self.model_filename,
             # 'model_api_type': self.model_api_type,
-            'template_flg': self.template_flg
+            'template_flg': self.template_flg,
+            'created_dttm': self.created_dttm,
+            'last_changed_dttm': self.last_changed_dttm
         }
     
     def get_metadata_attr_names(self):
@@ -242,5 +248,7 @@ class ExperimentMetadata(BaseModel):
             'parent_experiment_id',
             'model_filename', 
             # 'model_api_type', 
-            'template_flg'
+            'template_flg',
+            'created_dttm',
+            'last_changed_dttm'
         ]

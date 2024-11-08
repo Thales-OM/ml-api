@@ -10,12 +10,10 @@ import shutil
 from torch import nn
 import torch
 import joblib
-from experiment import Experiment, ExperimentMetadata
-from loaders import ExperimentMetadataLoader, ModelLoader
+from .experiment import Experiment, ExperimentMetadata
+from .loaders import ExperimentMetadataLoader, ModelLoader
 import numpy as np
-
-
-TEMPLATES_DIR_PATH = './template_experiments'
+from datetime import datetime
 
 
 class ModelManager():
@@ -33,7 +31,7 @@ class ModelManager():
     _loaded_experiments: Optional[Dict[UUID, Experiment]] = dict() # Experiments loaded to memory, <experiment_id:  Experiment object>
     _current_experiment: Optional[Experiment] = None
     ## Template experiments
-    _templates_dir_path: Optional[str] = TEMPLATES_DIR_PATH
+    _templates_dir_path: Optional[str] = None
     ## Loader classes
     _metadata_loader: Optional[ExperimentMetadataLoader] = None
     _model_loader: Optional[ModelLoader] = None
@@ -51,7 +49,7 @@ class ModelManager():
             # instance.root_directory = root_directory
         return cls._instances[root_directory]
 
-    def __init__(self, root_directory: str, metadata_filename: str = 'metadata', model_savefile_basename: str = 'model'):
+    def __init__(self, root_directory: str, metadata_filename: str = 'metadata', model_savefile_basename: str = 'model', templates_dir_path: str = None):
         # Prevent re-initialization of already created instances
         if not self._initialized:
             # Set necessary attributes within classs
@@ -62,7 +60,7 @@ class ModelManager():
             self._root_directory = root_directory
             self._metadata_filename = metadata_filename
             self._model_savefile_basename = model_savefile_basename
-            print(f"Initializing ModelManager within project root: {self._root_directory}")
+            self._templates_dir_path = templates_dir_path
             self._initialize_project()
             self._initialized = True
     
@@ -80,12 +78,12 @@ class ModelManager():
         invalid_paths = 0
         successful_loads = 0
         total_paths = len(root_directory_contents)
-        print("Initializing project in directory: ", self._root_directory)
+        logging.info(f"Initializing project in directory: {self._root_directory}")
         for name in tqdm(root_directory_contents):
             path = os.path.join(self._root_directory, name)
             try:
                 if self._path_is_valid_experiment(path):
-                    metadata_path = os.path.join(self._root_directory, self._metadata_filename)
+                    metadata_path = os.path.join(path, self._metadata_filename)
                     metadata = self._metadata_loader._read_metadata_file(metadata_path)
                     valid_experiments_data[name] = {'path': path, 'metadata': metadata}
                     successful_loads += 1
@@ -99,8 +97,13 @@ class ModelManager():
             {invalid_paths} were not valid experiment paths.')
         self._experiments_on_disk = valid_experiments_data
     
+    def update_experiments_on_disk_data(self, experiment: UUID, value: Dict[str, Any]) -> None:
+        """Safely updates info about experiments in project directory. Ensures type safety and valid contents"""
+        # TODO: finish this
+        pass
+    
     @staticmethod
-    def _string_is_valid_experiment_id(experiment_id_str) -> bool:
+    def _string_is_valid_experiment_id(experiment_id_str: str) -> bool:
         """Check if a string is a valid experiment ID."""
         try:
             experiment_id = UUID(experiment_id_str)
@@ -109,6 +112,10 @@ class ModelManager():
         return True
     
     def _populate_root_with_templates(self, overwrite: bool = False) -> None:
+        if self._templates_dir_path is None or not os.path.exists(self._templates_dir_path):
+            # Template projects directory may not exist
+            logging.warning(f"Template projects directory not found at: {self._templates_dir_path}")
+            return None
         for name in os.listdir(self._templates_dir_path):
             base_path = os.path.join(self._templates_dir_path, name)
             if self._path_is_valid_experiment(base_path):
@@ -160,6 +167,9 @@ class ModelManager():
         new_metadata['origin_experiment_id'] = base_experiment_id
         new_metadata['parent_experiment_id'] = base_experiment_id
         new_metadata['template_flg'] = False
+        created_dttm = datetime.now()
+        new_metadata['created_dttm'] = created_dttm
+        new_metadata['last_changed_dttm'] = created_dttm
         new_metadata = ExperimentMetadata(**new_metadata).get_metadata_dict() # Validate input
         # Copy files to new path
         new_experiment_path = self._produce_experiment_path(new_experiment_id)
@@ -202,9 +212,15 @@ class ModelManager():
             Get path to experiment directory.
             Applicable to valid experiments present in ModelManager in-memory data (_experiments_on_disk).
         """
+        if not isinstance(experiment_id, UUID):
+            logging.warning('_get_existing_experiment_path: Received non-UUID type. Trying to cast to UUID.')
+            try:
+                experiment_id = UUID(experiment_id)
+            except Exception as e:
+                raise ValueError(f"Failed to cast {experiment_id} to UUID: {str(e)}")
         if experiment_id in self._experiments_on_disk:
             return self._experiments_on_disk[experiment_id]['path']
-        raise ValueError(f"No valid experiment found on disk with id: {experiment_id}")
+        raise ValueError(f"No valid experiment found on disk with id: {experiment_id}. IDs in project directory {list(self._experiments_on_disk.keys())}")
 
     @staticmethod
     def _generate_experiment_id():
@@ -213,14 +229,15 @@ class ModelManager():
 
     def load_experiment(self, experiment_id: UUID) -> Experiment:
         """
-        Loads an experiment from disk into the ModelManager's in-memory data and creates an Experiment object.
+        Load an experiment from disk into the ModelManager's in-memory data and create an Experiment object.
+        If already loaded - return existing instance.
         Returns:
             Loaded experiment instance
         """
         # Check if experiment already in memory
         if experiment_id in self._loaded_experiments:
-            self._current_experiment = self._loaded_experiments[experiment_id]
-            return self._current_experiment
+            logging.debug(f'Load_experiment was called on an already loaded instance (ID={experiment_id}). Returning existing instance.')
+            return self._loaded_experiments[experiment_id]
         
         experiment_path = self._get_existing_experiment_path(experiment_id)
         model_filename = self._experiments_on_disk[experiment_id]['metadata']['model_filename']
@@ -228,12 +245,23 @@ class ModelManager():
         model = self._model_loader.load_from_path(model_path)
         experiment = Experiment(id=experiment_id, model=model)
         self._loaded_experiments[experiment_id] = experiment
-        self._current_experiment = experiment
         return experiment
+    
+    def select_experiment(self, experiment_id: UUID) -> Experiment:
+        """
+        Select a given Experiment by ID from the project.
+        Load from disk to memory if was not loaded yet.
+        """
+        # Check if experiment is not yet in memory
+        if experiment_id not in self._loaded_experiments:
+            experiment_instance = self.load_experiment(experiment_id)
+        experiment_instance = self._loaded_experiments[experiment_id]
+        self._current_experiment = experiment_instance
+        return self._current_experiment
 
     def create_experiment_locally(self, model: Union[nn.Module, BaseEstimator], name: Optional[str] = None, template_flg: int = 0) -> str:
         """
-        Creates a new experiment from a locally provided data.
+        Create a new experiment from a locally provided data.
         Returns:
             Created experiment ID.
         """
@@ -243,7 +271,16 @@ class ModelManager():
         new_model_path = self._model_loader.save_to_dir(model=model, dir_path=new_experiment_path, file_basename=self._model_savefile_basename)
         new_model_filename = os.path.basename(new_model_path)
         new_metadata_path = os.path.join(new_experiment_path, self._metadata_filename)
-        new_metadata = ExperimentMetadata(name=name, origin_experiment_id=None, parent_experiment_id=None, model_filename=new_model_filename, template_flg=template_flg)
+        created_dttm = datetime.now()
+        new_metadata = ExperimentMetadata(
+            name=name, 
+            origin_experiment_id=None, 
+            parent_experiment_id=None, 
+            model_filename=new_model_filename, 
+            template_flg=template_flg, 
+            created_dttm=created_dttm,
+            last_changed_dttm=created_dttm
+        )
         self._metadata_loader._write_metadata_file(path=new_metadata_path, metadata=new_metadata.get_metadata_dict())
         self._experiments_on_disk[new_experiment_id] = {'path': new_experiment_path, 'metadata': new_metadata.get_metadata_dict()}
         logging.info(f'New experiment created (ID={new_experiment_id})(method=local)')
@@ -258,10 +295,13 @@ class ModelManager():
         current_model_filename = os.path.basename(current_model_path)
         metadata = ExperimentMetadata(**self._experiments_on_disk[current_experiment_id]['metadata'])
         metadata.safe_setattr(key='model_filename', value=current_model_filename)
+        metadata.safe_setattr(key='last_changed_dttm', value=datetime.now())
+        current_metadata_path = os.path.join(current_experiment_path, self._metadata_filename)
+        self._metadata_loader._write_metadata_file(path=current_metadata_path, metadata=metadata.get_metadata_dict())
         self._experiments_on_disk[current_experiment_id]['metadata'] = metadata.get_metadata_dict()
     
     @staticmethod
-    def seed(value: Any) -> None:
+    def seed(value: Union[int, float, str, bytes]) -> None:
         """Set random seed for reproducibility"""
         Experiment.seed(value=value)
 
@@ -284,9 +324,7 @@ class ModelManager():
         self._current_experiment.fit(X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)
 
     def predict(self, X_test: Iterable) -> np.ndarray:
-        """
-        Outputs predictions from the model in the currently loaded Experiment.
-        """
+        """Outputs predictions from the model in the currently loaded Experiment."""
         return self._current_experiment.predict(X_test=X_test)
     
     def get_experiments_on_disk(self):
@@ -296,3 +334,18 @@ class ModelManager():
     def get_project_path(self):
         """Return path to the root project directory"""
         return self._root_directory
+    
+    def get_current_experiment(self):
+        """Return curretnly active experiment"""
+        return self._current_experiment
+
+    def get_loaded_experiments_status(self):
+        """Return each loaded model (Experiment) and its status (Ready/Running/Error etc.)x"""
+        data = list()
+        for id, experiment in self._loaded_experiments.items():
+            experiment_data = {
+                'experiment_id': id,
+                'status': experiment.status
+            }
+            data.append(experiment_data)
+        return data
