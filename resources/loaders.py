@@ -8,7 +8,21 @@ from torch import nn
 import torch
 import joblib
 from .experiment import ExperimentMetadata
+from uuid import UUID
 
+
+# Custom constructor to convert UUID strings to UUID objects
+def uuid_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return UUID(value)
+
+# Custom representer to convert UUID objects to strings
+def uuid_representer(dumper, data):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', str(data))
+
+# Register the constructor and representer
+yaml.add_constructor('!uuid', uuid_constructor)
+yaml.add_representer(UUID, uuid_representer)
 
 class ExperimentMetadataLoader():
     """Class entirely for loading metadata from a file and validating contents."""
@@ -56,9 +70,9 @@ class ExperimentMetadataLoader():
 
     @staticmethod
     def _read_metadata_file(path: str) -> dict:
-        """Reads metadata file contents into dict."""
+        """Reads metadata file contents into dict. Type/contents unsafe."""
         with open(path, 'r') as file:
-            metadata_dict = yaml.safe_load(file)
+            metadata_dict = yaml.load(file, Loader=yaml.FullLoader)
         return metadata_dict
 
     @staticmethod

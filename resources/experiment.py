@@ -1,16 +1,17 @@
 from uuid import UUID
-from typing import Union, Iterable, Tuple, Dict, Any, Optional, Annotated
+from typing import Union, Iterable, Tuple, Dict, Any, Optional, Annotated, List
 from sklearn.base import BaseEstimator
 from torch.nn import Module
 from torch import nn, tensor, float32
 from torch.nn.modules.loss import _Loss
 from torch import optim
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, StringConstraints, create_model
 from tqdm import tqdm
 import torch
 import numpy as np
 import random
 from datetime import datetime
+# from config import RESTRICTED_METADATA_FIELDS
 
 
 class Experiment():
@@ -59,10 +60,10 @@ class Experiment():
             X_train (Iterable): Input features for training.
             y_train (Iterable): Target values for training.
             params (dict): Parameters for training - attributes that are set to model object (includes loss/criterion for Scikit-Learn API).
-            loss (str): Loss function for training - only applicable for PyTorch models.
-            optim (str): Optimizer name - only applicable for PyTorch models.
-            optim_args (dict): Parameters for PyTorch optimizer - only applicable for PyTorch models.
-            epochs (int): Number of epochs for training - only applicable for PyTorch models.
+            loss (str): Loss function for training - only applicable to PyTorch models.
+            optim (str): Optimizer name - only applicable to PyTorch models.
+            optim_args (dict): Parameters for PyTorch optimizer - only applicable to PyTorch models.
+            epochs (int): Number of epochs for training - only applicable to PyTorch models.
 
         Returns:
             Trained model.
@@ -101,7 +102,7 @@ class Experiment():
             return loss_functions[loss_name]()
         else:
             raise ValueError(f"Unsupported loss function: {loss_name}. Choose from {list(loss_functions.keys())}.")
-        
+    
     @staticmethod
     def _get_torch_optimizer(optimizer_name: str, model_parameters: Iterable, optimizer_args: dict = dict()) -> optim.Optimizer:
         """
@@ -185,6 +186,7 @@ class Experiment():
             if (epoch + 1) % 10 == 0:
                 print(f'Epoch [{epoch + 1}/{epochs}], Loss: {curr_loss.item():.4f}')
     
+    @staticmethod
     def _fit_sklearn(model: BaseEstimator,  X_train: Iterable, y_train: Iterable, params: dict = dict()) -> None:
         # Handle model parameters
         if params:
@@ -212,12 +214,11 @@ class Experiment():
         return self.model
 
 class ExperimentMetadata(BaseModel):
-    """In-memory representation of an experiment's metadata file with validation."""
+    """In-memory representation of an experiment's metadata + project directory info (path)"""
     name: Optional[str] = None
     origin_experiment_id: Optional[UUID] = None
     parent_experiment_id: Optional[UUID] = None
     model_filename: Annotated[str, StringConstraints(min_length=1)]
-    # model_api_type: Annotated[str, StringConstraints(min_length=1)]
     template_flg: bool
     created_dttm: Optional[datetime] = None
     last_changed_dttm: Optional[datetime] = None
@@ -229,26 +230,21 @@ class ExperimentMetadata(BaseModel):
         else:
             raise AttributeError(f"Cannot set non-existent attribute '{key}' to ExperimentMetadata object.")
 
-    def get_metadata_dict(self):
-        return {
-            'name': self.name,
-            'origin_experiment_id': self.origin_experiment_id,
-            'parent_experiment_id': self.parent_experiment_id,
-            'model_filename': self.model_filename,
-            # 'model_api_type': self.model_api_type,
-            'template_flg': self.template_flg,
-            'created_dttm': self.created_dttm,
-            'last_changed_dttm': self.last_changed_dttm
-        }
-    
-    def get_metadata_attr_names(self):
-        return [
-            'name', 
-            'origin_experiment_id', 
-            'parent_experiment_id',
-            'model_filename', 
-            # 'model_api_type', 
-            'template_flg',
-            'created_dttm',
-            'last_changed_dttm'
-        ]
+    def get_metadata_dict(self) -> Dict[str, Optional[object]]:
+        """Returns the defined attributes and their values as a dictionary."""
+        return self.model_dump(exclude_unset=True)
+
+    def get_metadata_attr_names(self) -> List[str]:
+        """Returns a list of attribute names."""
+        return list(self.model_fields.keys())
+
+# # Subset of ExperimentMetadata with some fields hidden from user
+# ## Inherit from ExperimentMetadata + retain Pydantic model
+# ExperimentMetadataExternal = create_model(
+#     'ExperimentMetadataExternal',
+#     **{name: (field, ...) for name, field in ExperimentMetadata.__annotations__.items() if name not in RESTRICTED_METADATA_FIELDS}
+# )
+# ## Inherit methods
+# ExperimentMetadataExternal.get_metadata_dict = ExperimentMetadata.get_metadata_dict
+# ExperimentMetadataExternal.get_metadata_attr_names = ExperimentMetadata.get_metadata_attr_names
+# ExperimentMetadataExternal.safe_setattr = ExperimentMetadata.safe_setattr
