@@ -1,0 +1,7 @@
+created_dttm: &id001 2024-11-06 13:38:57.732099
+last_changed_dttm: *id001
+model_filename: model.pt
+name: Template untrained MLP PyTorch model
+origin_experiment_id: null
+parent_experiment_id: null
+template_flg: true

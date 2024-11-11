@@ -1,0 +1,7 @@
+created_dttm: &id001 2024-11-06 13:38:57.733386
+last_changed_dttm: *id001
+model_filename: model.skl
+name: Template untrained LinearRegression Scikit-Learn model
+origin_experiment_id: null
+parent_experiment_id: null
+template_flg: true
