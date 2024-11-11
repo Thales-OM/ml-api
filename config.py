@@ -13,3 +13,6 @@ RESTRICTED_METADATA_FIELDS = ['path'] # Metadata fields that should not be expos
 
 HOST_REST_API = '0.0.0.0'
 PORT_REST_API = 8000
+
+HOST_GRPC = '0.0.0.0'
+PORT_GRPC = 50051
