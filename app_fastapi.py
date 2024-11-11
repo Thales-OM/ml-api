@@ -10,7 +10,7 @@ import asyncio
 from typing import Annotated, Optional, Union, List
 import json
 import datetime
-from config import APP_NAME
+from config import APP_NAME, GRAFANA_EXT_URL, GRAFANA_RESOURCES_DASHBOARD_UID
 
 
 
@@ -112,7 +112,7 @@ def create_app(root_directory: str, templates_dir_path: Optional[str] = None) ->
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def read_root(request: Request):
-        return templates.TemplateResponse("index.html", {'request': request, 'app_name': APP_NAME})
+        return templates.TemplateResponse("index.html", {'request': request, 'app_name': APP_NAME, 'grafana_url': GRAFANA_EXT_URL, 'dashboard_uid': GRAFANA_RESOURCES_DASHBOARD_UID})
 
     # Define FastAPI endpoints
     @app.get("/experiments/list", response_model=List[ExperimentMetadataResponse])
