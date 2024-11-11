@@ -1,0 +1,46 @@
+services:
+  ml-api:
+    build: .
+    ports:
+      - "8000:8000"  # Expose FastAPI app on port 8000
+    environment:
+      - HOST_REST_API=0.0.0.0  # Make FastAPI listen on all interfaces
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          # ignore:
+          #   - node_modules/
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"  # Expose Prometheus on port 9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  # Mount prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - ml-api
+
+  grafana:
+    image: grafana/grafana-oss
+    ports:
+      - "3000:3000"  # Expose Grafana on port 3000
+    volumes:
+      # - grafana_data:/var/lib/grafana # Mount volume
+      - ./provisioning:/etc/grafana/provisioning  # Mount the entire provisioning directory
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Set admin password for Grafana
+      # Disable auth - make available for local user without auth
+      - GF_AUTH_ANONYMOUS_ENABLED=true 
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
+    restart: unless-stopped
+
+# volumes:
+  # grafana_data: {}  # Define the named volume for persistent storage
