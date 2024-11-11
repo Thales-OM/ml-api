@@ -1,42 +1,70 @@
-from model_manager import ModelManager
+from resources.model_manager import ModelManager
 from torch import nn, optim
 import torch
-from fixtures import generate_test_dir_path, SimpleModel, model_manager, LOSS_FUNCTIONS, OPTIMIZERS
+from fixtures import generate_test_dir_path, SimpleModel, model_manager_create_and_teardown, LOSS_FUNCTIONS, OPTIMIZERS
 import shutil
 import pytest
 import numpy as np
 import random
 import logging
 
+logging.basicConfig(level=logging.DEBUG)
 
-def test_create_experiment_locally(model_manager):
+
+def test_create_experiment_locally(model_manager_create_and_teardown):
+    model_manager, test_dir_path = model_manager_create_and_teardown
     input_size = 10
     model = SimpleModel(input_size=input_size)
     model.eval()
     model_input = torch.randn(1, input_size)
     model_output_expected = model(model_input).detach().cpu().numpy()
     created_experiment_id = model_manager.create_experiment_locally(model=model, name='Example PyTorch model', template_flg=1)
-    model_manager.load_experiment(created_experiment_id)
+    model_manager.select_experiment(created_experiment_id)
     model_output_received = model_manager.predict(X_test=model_input) # expecting to get numpy.ndarray
     np.array_equal(model_output_expected, model_output_received), f"Methods returned different predictions:/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n"
 
-def test_branch_experiment(model_manager):
+def test_branch_experiment(model_manager_create_and_teardown):
+    model_manager, test_dir_path = model_manager_create_and_teardown
     input_size = 10
     model = SimpleModel(input_size=input_size)
     model.eval()
     model_input = torch.randn(1, input_size)
     model_output_expected = model(model_input).detach().cpu().numpy()
+
     created_experiment_id = model_manager.create_experiment_locally(model=model, name='Example PyTorch model', template_flg=1)
     branch_experiment_id = model_manager.branch_experiment(base_experiment_id=created_experiment_id, name='Test experiment branch')
-    model_manager.load_experiment(branch_experiment_id)
-    model_output_received = model_manager.predict(X_test=model_input) # expecting to get numpy.ndarray
-    np.array_equal(model_output_expected, model_output_received), f"Methods returned different predictions:/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n"
+    branch_experiment_obj = model_manager.select_experiment(branch_experiment_id)
+    branch_model = branch_experiment_obj.get_model_obj()
+
+    branch_model.eval()
+    model_output_received = branch_model(model_input).detach().cpu().numpy()
+    assert np.array_equal(model_output_expected, model_output_received), f"Methods returned different predictions:/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n"
+
+def test_load_experiment(model_manager_create_and_teardown):
+    model_manager, test_dir_path = model_manager_create_and_teardown
+    input_size = 10
+    model = SimpleModel(input_size=input_size)
+    model.eval()
+    model_input = torch.randn(1, input_size)
+    model_output_expected = model(model_input).detach().cpu().numpy()
+
+    created_experiment_id = model_manager.create_experiment_locally(model=model, name='Example PyTorch model', template_flg=1)
+    branch_experiment_id = model_manager.branch_experiment(base_experiment_id=created_experiment_id, name='Test experiment branch')
+    branch_experiment_obj = model_manager.load_experiment(branch_experiment_id)
+    branch_model = branch_experiment_obj.get_model_obj()
+    
+    branch_model.eval()
+    model_output_received = branch_model(model_input).detach().cpu().numpy()
+    assert np.array_equal(model_output_expected, model_output_received), f"Methods returned different predictions:/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n"
 
 # Parametrize the test with combinations of loss functions and optimizers
 @pytest.mark.parametrize("loss_name, optimizer_name", [(loss_name, optimizer_name) 
                                                          for loss_name in LOSS_FUNCTIONS.keys() 
                                                          for optimizer_name in OPTIMIZERS.keys()])
-def test_train_torch(model_manager, loss_name, optimizer_name):
+def test_train_torch(model_manager_create_and_teardown, loss_name, optimizer_name):
+    model_manager, test_dir_path = model_manager_create_and_teardown
+    
+    # Parameters
     input_size = 10
     output_size = 1
     n_samples_train = 100
@@ -54,7 +82,7 @@ def test_train_torch(model_manager, loss_name, optimizer_name):
 
     model = SimpleModel(input_size=input_size, output_size=output_size)
     created_experiment_id = model_manager.create_experiment_locally(model=model, name='Test PyTorch model for training', template_flg=0)
-    model_manager.load_experiment(created_experiment_id)
+    model_manager.select_experiment(created_experiment_id)
 
     # Define loss function for ModelManager and example training
     loss = loss_name
@@ -89,3 +117,5 @@ def test_train_torch(model_manager, loss_name, optimizer_name):
     model_output_expected = model(X_test).detach().cpu().numpy()
     logging.debug(f"Received predictions ({loss_name}-{optimizer_name}):/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n")
     np.array_equal(model_output_expected, model_output_received), f"Methods returned different predictions:/n/tLocal: {model_output_expected}, /n/tModelManager: {model_output_received}/n"
+
+    # TODO: test training Scikit-Learn
