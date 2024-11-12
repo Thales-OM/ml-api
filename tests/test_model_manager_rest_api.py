@@ -9,7 +9,7 @@ from config import TEMPLATES_DIR_PATH
 from fixtures import generate_test_dir_path, test_client_setup_and_teardown, response_to_decoded_json
 import os
 import yaml
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 from uuid import UUID
 
 

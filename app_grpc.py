@@ -3,7 +3,7 @@ import grpc
 from concurrent import futures
 from grpc_protobuf.model_manager_grpc_pb2_grpc import ModelManagerGRPCServicer, add_ModelManagerGRPCServicer_to_server
 from grpc_protobuf.model_manager_grpc_pb2 import PredictResponse, BasicExperimentResponse, BasicSuccessResponse, ExperimentMetadataResponse, ListExperimentsResponse
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 from typing import Optional
 import logging
 from uuid import UUID
