@@ -1,4 +1,4 @@
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 from torch import nn, optim
 import torch
 import shutil

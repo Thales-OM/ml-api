@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, StringConstraints
 from uuid import UUID
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 import asyncio
 from typing import Annotated, Optional, Union, List
 import json

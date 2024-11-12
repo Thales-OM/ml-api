@@ -3,7 +3,7 @@ import grpc
 from concurrent import futures
 from grpc_protobuf.model_manager_grpc_pb2_grpc import ModelManagerGRPCServicer, add_ModelManagerGRPCServicer_to_server
 from grpc_protobuf.model_manager_grpc_pb2 import PredictResponse, BasicExperimentResponse, BasicSuccessResponse, ExperimentMetadataResponse, ListExperimentsResponse
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 from typing import Optional
 import logging
 from uuid import UUID
@@ -99,7 +99,7 @@ async def serve(host: str, port: int, root_directory: str, templates_dir_path: O
     add_ModelManagerGRPCServicer_to_server(ModelManagerGRPC(model_manager), server)
     server.add_insecure_port(f'{host}:{port}')
     await server.start()
-    logging.info(f"gRPC server is running on port {port}")
+    logging.info(f"gRPC server is running on http://{host}:{port}")
     await server.wait_for_termination()
 
 if __name__ == '__main__':

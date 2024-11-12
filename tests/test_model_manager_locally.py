@@ -1,4 +1,4 @@
-from resources.model_manager import ModelManager
+from core.model_manager import ModelManager
 from torch import nn, optim
 import torch
 from fixtures import generate_test_dir_path, SimpleModel, model_manager_create_and_teardown, LOSS_FUNCTIONS, OPTIMIZERS
