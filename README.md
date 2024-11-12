@@ -9,4 +9,6 @@ Main addresses:
 - Main page (Swagger + Grafana): `http://localhost:8000`
 - gRPC server: `http://localhost:50051`
 
+Example usages (FastApi, gRPC): `/examples`
+
 Author: `ispugin@edu.hse.ru` (Пугин Илья Сергеевич)
