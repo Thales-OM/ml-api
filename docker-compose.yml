@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "8000:8000"  # Expose FastAPI app on port 8000
+      - "50051:50051" # Expose gRPC
     environment:
       - HOST_REST_API=0.0.0.0  # Make FastAPI listen on all interfaces
     develop:
