@@ -64,6 +64,10 @@ class ModelManager:
             self._root_must_exist = root_must_exist
             self._initialize_project()
             self._initialized = True
+            # for Grafana - load at least 1 Experiment
+            available_experiments = self.get_experiments_on_disk()
+            some_experiment_id_on_disk = list(available_experiments.keys())[-1]
+            self.load_experiment(some_experiment_id_on_disk)
     
     def _initialize_project(self) -> None:
         """Scan the root directory for existing models and load their metadata."""
