@@ -96,6 +96,9 @@ def create_app(root_directory: str, templates_dir_path: Optional[str] = None) ->
     # Define FastAPI app
     app = FastAPI()
 
+    # Ensure /static directory exists
+    os.makedirs('static', exist_ok=True)
+    
     # Mount the static files directory
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
