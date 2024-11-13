@@ -1,0 +1,11 @@
+<html>
+    <head>
+        <title>{{ app_name | upper }}</title>
+    </head>
+    <body>
+        <h1>Welcome to {{ app_name | upper }}</h1>
+        <p>This is a simple HTML page.</p>
+        <p>Visit the <a href="/docs">Swagger UI</a> to see the API documentation.</p>
+        <p>Visit <a href="{{ grafana_url }}/d/{{ dashboard_uid }}">Grafana</a> for resource/perfomance monitoring.</p>
+    </body>
+</html>

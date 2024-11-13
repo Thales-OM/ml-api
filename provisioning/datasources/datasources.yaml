@@ -1,0 +1,29 @@
+apiVersion: 1
+
+# List of data sources to delete from the database.
+deleteDatasources:
+  - name: prometheus-local
+    orgId: 1
+  - name: ml-api-json
+    orgId: 1
+
+datasources:
+  - name: prometheus-local
+    uid: ae3bhacr9l4owr # THIS IS IMPORTANT ON THE DASHBOARD MUST BE THE SAME # NOT REALLY IF YOUI DEFINE DASHBOARD WITH ENV VARIABLES
+    orgId: 1
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090  # Change this to your Prometheus URL
+    jsonData:
+      httpMethod: POST  # or GET, depending on your setup
+    secureJsonData:
+      # password: ${PASSWORD}  # Uncomment and set if you need to provide a password
+    editable: true  # Set to false if you want to prevent editing from the UI
+  - name: ml-api-json
+    type: marcusolsson-json-datasource
+    uid: ae3fam6q0i7swc
+    url: http://ml-api:8000
+    access: proxy
+    jsonData:
+      # authType: "basic"  # or "bearer"
+    editable: true
