@@ -14,6 +14,7 @@ from .experiment import Experiment, ExperimentMetadata
 from .loaders import ExperimentMetadataLoader, ModelLoader
 import numpy as np
 from datetime import datetime
+from .dvc_handler import DVCHandler
 
 
 class ModelManager:
@@ -49,12 +50,21 @@ class ModelManager:
             # instance.root_directory = root_directory
         return cls._instances[root_directory]
 
-    def __init__(self, root_directory: str, metadata_filename: str = 'metadata', model_savefile_basename: str = 'model', templates_dir_path: str = None, root_must_exist: bool = False):
+    def __init__(
+            self, 
+            root_directory: str, 
+            metadata_filename: str = 'metadata', 
+            model_savefile_basename: str = 'model', 
+            templates_dir_path: str = None, 
+            root_must_exist: bool = False, 
+            dvc_remote_name: str = None
+        ):
         # Prevent re-initialization of already created instances
         if not self._initialized:
             # Set necessary attributes within classs
             self._metadata_loader = ExperimentMetadataLoader()
             self._model_loader = ModelLoader(savefile_basename=model_savefile_basename)
+            self._dvc_handler = DVCHandler(project_dir=root_directory, remote_name=dvc_remote_name)
             # Validate user input and set attributes
             # super().__init__(_root_directory=root_directory, _metadata_filename=metadata_filename, _model_savefile_basename=model_savefile_basename)
             self._root_directory = root_directory
@@ -380,3 +390,13 @@ class ModelManager:
             }
             data.append(experiment_data)
         return data
+
+    def dvc_add_experiment(self, experiment_id: UUID):
+        """Add experiment to DVC repository"""
+        experiment_id = self._ensure_experiment_id_type(experiment_id=experiment_id)
+        experiment_dir_path = self._get_existing_experiment_path(experiment_id=experiment_id)
+        self._dvc_handler.add(path=experiment_dir_path)
+    
+    def dvc_push(self):
+        """Push all experiments to DVC repository"""
+        self._dvc_handler.push()
