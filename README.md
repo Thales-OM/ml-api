@@ -6,7 +6,7 @@ Launch app:
 - With all modules: `docker-compose up --build`
 
 Main addresses:
-- Main page (Swagger + Grafana): `http://localhost:8000`
+- Main page (Swagger + Grafana + Minio): `http://localhost:8000`
 - gRPC server: `http://localhost:50051`
 
 Example usages (FastApi, gRPC): `/examples`

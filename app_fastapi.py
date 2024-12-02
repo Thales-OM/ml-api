@@ -6,104 +6,30 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, StringConstraints
 from uuid import UUID
 from core.model_manager import ModelManager
-import asyncio
 from typing import Annotated, Optional, Union, List
-import json
-import datetime
-from config import APP_NAME, GRAFANA_EXT_URL, GRAFANA_RESOURCES_DASHBOARD_UID
+from config import APP_NAME, GRAFANA_EXT_URL, GRAFANA_RESOURCES_DASHBOARD_UID, MINIO_UI_EXT_URL, DVC_REMOTE_NAME
+from fastapi_resources.schemas import *
 
-
-
-# Define Pydantic models for requests
-class FitRequest(BaseModel):
-    X_train: List[List[float]]
-    y_train: List[float]
-    params: dict = {}
-    loss: Annotated[str, 'Loss function name: "mse", "cross_entropy", "huber" etc. Only applicable to PyTorch models.'] = 'mse'
-    optim: Annotated[str, 'Optimizer name: "sgd", "adam", "rmsprop" etc. Only applicable to PyTorch models.'] = 'adam'
-    optim_args: Annotated[dict, 'Optimizer args.'] = {'lr': 0.001}
-    epochs: int = 10
-
-class PredictRequest(BaseModel):
-    X_test: List[List[float]]
-
-class ExperimentMetadataResponse(BaseModel):
-    experiment_id: UUID # Encode UUID as str - avoid JSON serialization error
-    created_dttm: Optional[datetime.datetime]
-    last_changed_dttm: Optional[datetime.datetime]
-    model_filename: str
-    name: Optional[str]
-    origin_experiment_id: Optional[UUID]
-    parent_experiment_id: Optional[UUID]
-    template_flg: bool
-
-class ExperimentStatusResponse(BaseModel):
-    experiment_id: UUID # Encode UUID as str - avoid JSON serialization error
-    status: Annotated[str, StringConstraints(min_length=1)]
-
-class BasicSuccessResponse(BaseModel):
-    success: bool
-    msg: Optional[str] = None
-
-class BasicExperimentResponse(BaseModel):
-    experiment_id: UUID # Encode UUID as str - avoid JSON serialization error
-
-class PredictResponse(BaseModel):
-    predictions: list
-
-class CustomJSONEncoder(json.JSONEncoder):
-    """Encoder for datetime, date, UUID serialization in JSONResponse"""
-    def default(self, obj):
-        if isinstance(obj, (datetime.date, datetime.datetime)):
-            return obj.isoformat()
-        if isinstance(obj, UUID):
-            return str(obj)  # Convert UUID to string
-        return super().default(obj)
-
-def custom_decoder(dct):
-    """Decoder for datetime, date, UUID deserialization in JSONResponse"""
-    for key, value in dct.items():
-        if isinstance(value, str):
-            try:
-                # Try to parse the string as an ISO 8601 datetime
-                value = datetime.datetime.fromisoformat(value)
-                dct[key] = value
-            except ValueError:
-                # If parsing fails, keep the original string
-                pass
-        if isinstance(value, str):
-            try:
-                # Attempt to convert string to UUID
-                value = UUID(value)
-                dct[key] = value
-            except ValueError:
-                pass  # If conversion fails, keep the original value
-    return dct
-
-class CustomJSONResponse(JSONResponse):
-    def render(self, content: dict) -> bytes:
-        # Use the custom encoder to serialize the content
-        return json.dumps(content, cls=CustomJSONEncoder).encode("utf-8")
 
 def get_model_manager_instance(root_directory: str, templates_dir_path: Optional[str] = None) -> ModelManager:
         """
         Pytest dependency injection.
         Returns Singleton ModelManager instance rooted at main directory.
         """
-        return ModelManager(root_directory=root_directory, templates_dir_path=templates_dir_path)
+        return ModelManager(root_directory=root_directory, templates_dir_path=templates_dir_path, dvc_remote_name=DVC_REMOTE_NAME)
 
 def create_app(root_directory: str, templates_dir_path: Optional[str] = None) -> FastAPI:
     # Define FastAPI app
     app = FastAPI()
 
     # Ensure /static directory exists
-    os.makedirs('static', exist_ok=True)
+    os.makedirs('fastapi_resources/static', exist_ok=True)
     
     # Mount the static files directory
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.mount("/static", StaticFiles(directory="fastapi_resources/static"), name="static")
 
     # Set up the Jinja2 template directory
-    templates = Jinja2Templates(directory="templates")
+    templates = Jinja2Templates(directory="fastapi_resources/templates")
 
     # Handle unexpected exceptions
     @app.exception_handler(Exception)
@@ -115,7 +41,14 @@ def create_app(root_directory: str, templates_dir_path: Optional[str] = None) ->
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def read_root(request: Request):
-        return templates.TemplateResponse("index.html", {'request': request, 'app_name': APP_NAME, 'grafana_url': GRAFANA_EXT_URL, 'dashboard_uid': GRAFANA_RESOURCES_DASHBOARD_UID})
+        return templates.TemplateResponse("index.html", {
+            'request': request, 
+            'app_name': APP_NAME, 
+            'grafana_url': GRAFANA_EXT_URL, 
+            'dashboard_uid': GRAFANA_RESOURCES_DASHBOARD_UID, 
+            'minio_ui_url': MINIO_UI_EXT_URL
+            }
+        )
 
     # Define FastAPI endpoints
     @app.get("/experiments/list", response_model=List[ExperimentMetadataResponse])
@@ -188,4 +121,28 @@ def create_app(root_directory: str, templates_dir_path: Optional[str] = None) ->
         """Endpoint for checking the service health status."""
         return JSONResponse(content={"success": True})
     
+    @app.post("/dvc/add/{experiment_id}", response_model=BasicSuccessResponse)
+    async def dvc_add(
+        experiment_id: Annotated[UUID, Path(title="The ID of the required experiment")], 
+        model_manager: ModelManager = Depends(lambda: get_model_manager_instance(root_directory ,templates_dir_path))
+    ):
+        """Add files to DVC tracking for the given experiment."""
+        """Pushes the current experiments state to DVC remote"""
+        if not model_manager._dvc_handler.dvc_present:
+            raise HTTPException(status_code=404, detail="DVC is not set up. Please configure DVC before pushing data.")
+        if not model_manager._dvc_handler.remote_name:
+            raise HTTPException(status_code=404, detail="No remote configured for DVC to push to.")
+        model_manager.dvc_add(experiment_id=experiment_id)
+        return JSONResponse(content={"success": True})
+    
+    @app.post("/dvc/push", response_model=BasicSuccessResponse)
+    async def dvc_push(model_manager: ModelManager = Depends(lambda: get_model_manager_instance(root_directory ,templates_dir_path))):
+        """Pushes the current experiments state to DVC remote"""
+        if not model_manager._dvc_handler.dvc_present:
+            raise HTTPException(status_code=404, detail="DVC is not set up. Please configure DVC before pushing data.")
+        if not model_manager._dvc_handler.remote_name:
+            raise HTTPException(status_code=404, detail="No remote configured for DVC to push to.")
+        model_manager.dvc_push()
+        return JSONResponse(content={"success": True})
+
     return app

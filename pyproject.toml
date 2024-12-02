@@ -28,6 +28,7 @@ gputil = "^1.4.0"
 streamviz = "^5.1"
 matplotlib = "^3.9.2"
 prometheus-client = "^0.21.0"
+dvc = "^3.58.0"
 
 
 [build-system]
