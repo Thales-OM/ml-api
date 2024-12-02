@@ -1,22 +1,28 @@
 services:
   ml-api:
     build: .
+    # volumes:
+      # - ml-api_data: ./__main_project__
     ports:
       - "8000:8000"  # Expose FastAPI app on port 8000
       - "50051:50051" # Expose gRPC
     environment:
       - HOST_REST_API=0.0.0.0  # Make FastAPI listen on all interfaces
+      - MAIN_PROJECT_DIR=__main_project__
+      - MINIO_BUCKET_NAME=__main_project__
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
     develop:
       watch:
         - action: sync
           path: .
           target: /app
-          # ignore:
-          #   - node_modules/
+    # Setup the DVC and then start the app
+    command: ["bash", "-c", "source .venv/bin/activate && ./scripts/dvc_init.sh && python app.py"]
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.0.1
     ports:
       - "9090:9090"  # Expose Prometheus on port 9090
     volumes:
@@ -25,13 +31,13 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
       - ml-api
+    restart: unless-stopped
 
   grafana:
-    image: grafana/grafana-oss
+    image: grafana/grafana-oss:11.3.0
     ports:
       - "3000:3000"  # Expose Grafana on port 3000
     volumes:
-      # - grafana_data:/var/lib/grafana # Mount volume
       - ./provisioning:/etc/grafana/provisioning  # Mount the entire provisioning directory
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin  # Set admin password for Grafana
@@ -43,5 +49,19 @@ services:
       - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
     restart: unless-stopped
 
-# volumes:
-  # grafana_data: {}  # Define the named volume for persistent storage
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - 9000:9000
+      - 9001:9001
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+  # ml-api_data:
