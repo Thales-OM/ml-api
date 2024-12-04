@@ -12,6 +12,7 @@ import numpy as np
 import random
 from datetime import datetime
 # from config import RESTRICTED_METADATA_FIELDS
+from .utils import set_status
 
 
 class Experiment():
@@ -27,6 +28,11 @@ class Experiment():
     # Necessary user input
     id: UUID
     model: Union[BaseEstimator, Module]
+    # Internal app data
+    X_train: Optional[np.ndarray]
+    y_train: Optional[np.ndarray]
+    X_test: Optional[np.ndarray]
+    y_test: Optional[np.ndarray]
 
     def __new__(cls, id: UUID, *args, **kwargs):
         if id not in cls._instances:
@@ -35,9 +41,14 @@ class Experiment():
             # instance.root_directory = root_directory
         return cls._instances[id]
 
-    def __init__(self, id: UUID, model: Union[BaseEstimator, Module]):
+    def __init__(
+        self, 
+        id: UUID, 
+        model: Union[BaseEstimator, Module]
+    ):
         # Prevent re-initialization of already created instances
         if not self._initialized:
+            self.status = 'Initializing'
             # Validate user input and set attributes
             # super().__init__(id=id, model=model)
             self.id = id
@@ -52,6 +63,7 @@ class Experiment():
         random.seed(value)
         torch.manual_seed(value)
     
+    @set_status(status_during='Training', status_error='Error')
     def fit(self, X_train: Iterable, y_train: Iterable, params: dict = None, loss: str = 'mse', optim: str = 'adam', optim_args: dict = dict(), epochs: int = 10) -> None:
         """
         Trains a given model (either Scikit-Learn or PyTorch) on the provided data.
@@ -193,6 +205,7 @@ class Experiment():
             model.set_params(**params)
         model.fit(X_train, y_train)
 
+    @set_status(status_during='Inferencing', status_error='Error')
     def predict(self, X_test: Iterable) -> np.ndarray:
         """
         Outputs model predictions.
