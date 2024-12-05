@@ -11,7 +11,7 @@ from torch import nn
 import torch
 import joblib
 from .experiment import Experiment, ExperimentMetadata
-from .loaders import ExperimentMetadataLoader, ModelLoader
+from .loaders import ExperimentMetadataLoader, ModelLoader, DatasetLoader
 import numpy as np
 from datetime import datetime
 from .dvc_handler import DVCHandler
@@ -270,7 +270,16 @@ class ModelManager:
         model_filename = self._experiments_on_disk[experiment_id]['metadata']['model_filename']
         model_path = os.path.join(experiment_path, model_filename)
         model = self._model_loader.load_from_path(model_path)
-        experiment = Experiment(id=experiment_id, model=model)
+        dataset_loader = DatasetLoader()
+        X_train, y_train, X_test, y_test = dataset_loader.load_datasets(path=experiment_path)
+        experiment = Experiment(
+            id=experiment_id, 
+            model=model,
+            X_train=X_train, 
+            y_train=y_train, 
+            X_test=X_test, 
+            y_test=y_test
+        )
         self._loaded_experiments[experiment_id] = experiment
         return experiment
     
@@ -328,6 +337,14 @@ class ModelManager:
         current_metadata_path = os.path.join(current_experiment_path, self._metadata_filename)
         current_metadata_dict = metadata.get_metadata_dict()
         self._metadata_loader._write_metadata_file(path=current_metadata_path, metadata=current_metadata_dict)
+        dataset_loader = DatasetLoader()
+        dataset_loader.save_datasets(
+            path=current_experiment_path,
+            x_train=self._current_experiment.X_train,
+            y_train=self._current_experiment.y_train,
+            x_test=self._current_experiment.X_test,
+            y_test=self._current_experiment.y_test
+        )
         path = self._experiments_on_disk[current_experiment_id]['path']
         self._update_experiments_on_disk(experiment_id=current_experiment_id, value={'path': path, 'metadata': current_metadata_dict})
     

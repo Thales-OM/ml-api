@@ -44,7 +44,11 @@ class Experiment():
     def __init__(
         self, 
         id: UUID, 
-        model: Union[BaseEstimator, Module]
+        model: Union[BaseEstimator, Module],
+        X_train: np.ndarray = None, 
+        y_train: np.ndarray = None, 
+        X_test: np.ndarray = None, 
+        y_test: np.ndarray = None
     ):
         # Prevent re-initialization of already created instances
         if not self._initialized:
@@ -53,6 +57,8 @@ class Experiment():
             # super().__init__(id=id, model=model)
             self.id = id
             self.model = model
+            # Store datasets in memory as  numpy.ndarray
+            self.X_train, self.y_train, self.X_test, self.y_test = np.asarray(X_train), np.asarray(y_train), np.asarray(X_test), np.asarray(y_test)
             self._initialized = True
             self.status = 'Ready'
     
@@ -80,6 +86,10 @@ class Experiment():
         Returns:
             Trained model.
         """
+        # Record dataset (store in memory as numpy.ndarray)
+        self.X_train, self.y_train = np.asarray(X_train), np.asarray(y_train)
+
+        # Determine model type and call corresponding fit method
         if isinstance(self.model, BaseEstimator):
             self._fit_sklearn(model=self.model, X_train=X_train, y_train=y_train, params=params)
         elif isinstance(self.model, Module):
@@ -210,6 +220,10 @@ class Experiment():
         """
         Outputs model predictions.
         """
+        # Record dataset (store in memory as numpy.ndarray)
+        self.X_test = np.asarray(X_test)
+
+        # Determine model type and call corresponding predict method
         if isinstance(self.model, nn.Module):
             self.model.eval()
             X_tensor = tensor(X_test, dtype=float32)
