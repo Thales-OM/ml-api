@@ -29,6 +29,7 @@ streamviz = "^5.1"
 matplotlib = "^3.9.2"
 prometheus-client = "^0.21.0"
 dvc = "^3.58.0"
+clearml = "^1.16.5"
 
 
 [build-system]

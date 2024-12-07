@@ -13,6 +13,7 @@ import random
 from datetime import datetime
 # from config import RESTRICTED_METADATA_FIELDS
 from .utils import set_status
+from clearml import Task
 
 
 class Experiment():
@@ -59,6 +60,8 @@ class Experiment():
             self.model = model
             # Store datasets in memory as  numpy.ndarray
             self.X_train, self.y_train, self.X_test, self.y_test = np.asarray(X_train), np.asarray(y_train), np.asarray(X_test), np.asarray(y_test)
+            # ClearML integration
+            self.task = Task.init(project_name="ML-API", task_name=str(self.id))
             self._initialized = True
             self.status = 'Ready'
     
@@ -91,9 +94,13 @@ class Experiment():
 
         # Determine model type and call corresponding fit method
         if isinstance(self.model, BaseEstimator):
+            # Log hyperparameters
+            self.task.connect(params)
             self._fit_sklearn(model=self.model, X_train=X_train, y_train=y_train, params=params)
         elif isinstance(self.model, Module):
-            self._train_torch(model=self.model, X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)
+            # Log hyperparameters
+            self.task.connect(dict(**params, loss=loss, optim=optim, **optim_args, epochs=epochs))
+            self._train_torch(model=self.model, X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)       
         else:
             raise ValueError("Model must be either a Scikit-Learn estimator or a PyTorch module.")
 
@@ -239,6 +246,10 @@ class Experiment():
         
     def get_model_obj(self):
         return self.model
+    
+    def __del__(self):
+        # Close task upon experiment deletion
+        self.task.close()
 
 class ExperimentMetadata(BaseModel):
     """In-memory representation of an experiment's metadata + project directory info (path)"""

@@ -7,7 +7,7 @@ from pydantic import BaseModel, StringConstraints
 from uuid import UUID
 from core.model_manager import ModelManager
 from typing import Annotated, Optional, Union, List
-from config import APP_NAME, GRAFANA_EXT_URL, GRAFANA_RESOURCES_DASHBOARD_UID, MINIO_UI_EXT_URL, DVC_REMOTE_NAME
+from config import APP_NAME, GRAFANA_EXT_URL, GRAFANA_RESOURCES_DASHBOARD_UID, MINIO_UI_EXT_URL, DVC_REMOTE_NAME, CLEARML_UI_EXT_URL
 from fastapi_resources.schemas import *
 
 
@@ -46,6 +46,7 @@ def create_app(root_directory: str, templates_dir_path: Optional[str] = None) ->
             'app_name': APP_NAME, 
             'grafana_url': GRAFANA_EXT_URL, 
             'dashboard_uid': GRAFANA_RESOURCES_DASHBOARD_UID, 
+            'clearml_ui_url': CLEARML_UI_EXT_URL,
             'minio_ui_url': MINIO_UI_EXT_URL
             }
         )
