@@ -12,6 +12,8 @@ import numpy as np
 import random
 from datetime import datetime
 # from config import RESTRICTED_METADATA_FIELDS
+from .utils import set_status
+from clearml import Task
 
 
 class Experiment():
@@ -27,6 +29,11 @@ class Experiment():
     # Necessary user input
     id: UUID
     model: Union[BaseEstimator, Module]
+    # Internal app data
+    X_train: Optional[np.ndarray]
+    y_train: Optional[np.ndarray]
+    X_test: Optional[np.ndarray]
+    y_test: Optional[np.ndarray]
 
     def __new__(cls, id: UUID, *args, **kwargs):
         if id not in cls._instances:
@@ -35,13 +42,26 @@ class Experiment():
             # instance.root_directory = root_directory
         return cls._instances[id]
 
-    def __init__(self, id: UUID, model: Union[BaseEstimator, Module]):
+    def __init__(
+        self, 
+        id: UUID, 
+        model: Union[BaseEstimator, Module],
+        X_train: np.ndarray = None, 
+        y_train: np.ndarray = None, 
+        X_test: np.ndarray = None, 
+        y_test: np.ndarray = None
+    ):
         # Prevent re-initialization of already created instances
         if not self._initialized:
+            self.status = 'Initializing'
             # Validate user input and set attributes
             # super().__init__(id=id, model=model)
             self.id = id
             self.model = model
+            # Store datasets in memory as  numpy.ndarray
+            self.X_train, self.y_train, self.X_test, self.y_test = np.asarray(X_train), np.asarray(y_train), np.asarray(X_test), np.asarray(y_test)
+            # ClearML integration
+            self.task = Task.init(project_name="ML-API", task_name=str(self.id))
             self._initialized = True
             self.status = 'Ready'
     
@@ -52,6 +72,7 @@ class Experiment():
         random.seed(value)
         torch.manual_seed(value)
     
+    @set_status(status_during='Training', status_error='Error')
     def fit(self, X_train: Iterable, y_train: Iterable, params: dict = None, loss: str = 'mse', optim: str = 'adam', optim_args: dict = dict(), epochs: int = 10) -> None:
         """
         Trains a given model (either Scikit-Learn or PyTorch) on the provided data.
@@ -68,10 +89,18 @@ class Experiment():
         Returns:
             Trained model.
         """
+        # Record dataset (store in memory as numpy.ndarray)
+        self.X_train, self.y_train = np.asarray(X_train), np.asarray(y_train)
+
+        # Determine model type and call corresponding fit method
         if isinstance(self.model, BaseEstimator):
+            # Log hyperparameters
+            self.task.connect(params)
             self._fit_sklearn(model=self.model, X_train=X_train, y_train=y_train, params=params)
         elif isinstance(self.model, Module):
-            self._train_torch(model=self.model, X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)
+            # Log hyperparameters
+            self.task.connect(dict(**params, loss=loss, optim=optim, **optim_args, epochs=epochs))
+            self._train_torch(model=self.model, X_train=X_train, y_train=y_train, params=params, loss=loss, optim=optim, optim_args=optim_args, epochs=epochs)       
         else:
             raise ValueError("Model must be either a Scikit-Learn estimator or a PyTorch module.")
 
@@ -193,10 +222,15 @@ class Experiment():
             model.set_params(**params)
         model.fit(X_train, y_train)
 
+    @set_status(status_during='Inferencing', status_error='Error')
     def predict(self, X_test: Iterable) -> np.ndarray:
         """
         Outputs model predictions.
         """
+        # Record dataset (store in memory as numpy.ndarray)
+        self.X_test = np.asarray(X_test)
+
+        # Determine model type and call corresponding predict method
         if isinstance(self.model, nn.Module):
             self.model.eval()
             X_tensor = tensor(X_test, dtype=float32)
@@ -212,6 +246,10 @@ class Experiment():
         
     def get_model_obj(self):
         return self.model
+    
+    def __del__(self):
+        # Close task upon experiment deletion
+        self.task.close()
 
 class ExperimentMetadata(BaseModel):
     """In-memory representation of an experiment's metadata + project directory info (path)"""

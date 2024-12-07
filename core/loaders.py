@@ -3,12 +3,13 @@ from sklearn.base import BaseEstimator
 import yaml
 import logging
 from pydantic import BaseModel, StringConstraints, ValidationError, field_validator, constr
-from typing import Annotated, Dict, Union, Optional, Any
+from typing import Annotated, Dict, Union, Optional, Any, Tuple
 from torch import nn
 import torch
 import joblib
 from .experiment import ExperimentMetadata
 from uuid import UUID
+import numpy as np
 
 
 # Custom constructor to convert UUID strings to UUID objects
@@ -155,3 +156,107 @@ class ModelLoader():
             return save_path
         else:
             raise ValueError(f"Unsupported model type: {type(model)}. Expecting: nn.Module or BaseEstimator.")
+
+class DatasetLoader:
+    """Handles loading experiment datasets from disk and saving to disk"""
+    def __init__(self, datasets_dirname: str = 'datasets'):
+        self.datasets_dirname = datasets_dirname
+
+    def load_datasets(self, path: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Load binary NumPy saved ndarrays from "{path}/{datasets_dirname}".
+
+        This method attempts to load the following files from the given path:
+        - x_train.npy
+        - y_train.npy
+        - x_test.npy
+        - y_test.npy
+
+        If the directory does not exist, it returns None for all datasets.
+        If any of the files are missing, it returns None for those specific datasets.
+
+        Args:
+            path (str): The path to the directory containing the dataset files.
+
+        Returns:
+            Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+                A tuple containing the loaded datasets (x_train, y_train, x_test, y_test).
+                Each element will be None if the corresponding file is missing or cannot be loaded.
+        """
+        # Define the expected filenames
+        filenames = ['x_train.npy', 'y_train.npy', 'x_test.npy', 'y_test.npy']
+        datasets = []
+
+        # Construct path to datasets directory
+        full_load_path = os.path.join(path, self.datasets_dirname)
+
+        # Check if the directory exists
+        if not os.path.isdir(full_load_path):
+            return (None, None, None, None)
+
+        # Attempt to load each dataset
+        for filename in filenames:
+            file_path = os.path.join(full_load_path, filename)
+            if os.path.isfile(file_path):
+                try:
+                    data = np.load(file_path)
+                    datasets.append(data)
+                except Exception as e:
+                    logging.error(f"Error loading {file_path}: {e}")
+                    datasets.append(None)
+            else:
+                logging.warning(f'No dataset file found at path: {file_path}')
+                datasets.append(None)
+
+        return tuple(datasets)
+    
+    def save_datasets(
+        self, 
+        path: str, 
+        x_train: Optional[np.ndarray], 
+        y_train: Optional[np.ndarray], 
+        x_test: Optional[np.ndarray], 
+        y_test: Optional[np.ndarray]
+    ) -> None:
+        """
+        Save given ndarrays to the "{path}/{datasets_dirname}" with predefined filenames.
+
+        This method saves the provided ndarrays to the given path using the following filenames:
+        - x_train.npy
+        - y_train.npy
+        - x_test.npy
+        - y_test.npy
+
+        If the directory does not exist, it creates the directory.
+
+        Args:
+            path (str): The path to the directory where the dataset files will be saved.
+            x_train (Optional[np.ndarray]): The training feature dataset to save.
+            y_train (Optional[np.ndarray]): The training label dataset to save.
+            x_test (Optional[np.ndarray]): The testing feature dataset to save.
+            y_test (Optional[np.ndarray]): The testing label dataset to save.
+        """
+        # Construct path to datasets directory
+        full_save_path = os.path.join(path, self.datasets_dirname)
+
+        # Create the directory if it does not exist
+        os.makedirs(full_save_path, exist_ok=True)
+
+        # Define the expected filenames and corresponding data
+        datasets = {
+            'x_train.npy': x_train,
+            'y_train.npy': y_train,
+            'x_test.npy': x_test,
+            'y_test.npy': y_test
+        }
+
+        # Save each dataset
+        for filename, data in datasets.items():
+            file_path = os.path.join(full_save_path, filename)
+            if data is not None:
+                try:
+                    np.save(file_path, data)
+                except Exception as e:
+                    logging.error(f"Error saving {file_path}: {e}")
+            else:
+                logging.debug(f"No data to save for {filename} at {full_save_path}")
