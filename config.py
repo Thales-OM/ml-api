@@ -34,4 +34,4 @@ DVC_REMOTE_NAME = 'minio_remote'
 MINIO_UI_EXT_URL = 'http://localhost:9001'
 
 # ClearML
-CLEARML_UI_EXT_URL = "http://localhost:8080"
+CLEARML_UI_EXT_URL = 'http://localhost:8080'
