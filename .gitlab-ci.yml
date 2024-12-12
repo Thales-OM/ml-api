@@ -1,0 +1,36 @@
+image: python:latest
+
+stages:
+  - lint
+  - format
+
+variables:
+  LINT_COMMAND: "flake8 ."
+  FORMAT_COMMAND: "black ."
+
+lint:
+  stage: lint
+  script:
+    - pip install flake8
+    - $LINT_COMMAND
+  allow_failure: true
+
+format:
+  stage: format
+  script:
+    - pip install black
+    - $FORMAT_COMMAND --check
+  allow_failure: true
+
+format-fix:
+  stage: format
+  script:
+    - pip install black
+    - $FORMAT_COMMAND
+    - git config --global user.email "project65339238_bot@noreply.gitlab.com"
+    - git config --global user.name "CI Bot"
+    - git add .
+    - git commit -m "Format code with black"
+  only:
+    - master
+  when: manual
