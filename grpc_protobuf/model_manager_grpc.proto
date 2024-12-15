@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package model_manager_grpc;
+
+// Import necessary types
+import "google/protobuf/empty.proto";
+// import "google/protobuf/timestamp.proto";
+
+// Message to represent a list of floats (for nested list support)
+message FloatList {
+    repeated float values = 1; // List of floats
+}
+
+message FitRequest {
+    repeated FloatList X_train = 1;
+    repeated float y_train = 2;
+    map<string, string> params = 3;
+    string loss = 4;
+    string optim = 5;
+    map<string, string> optim_args = 6;
+    int32 epochs = 7;
+}
+
+message PredictRequest {
+    repeated FloatList X_test = 1;
+}
+
+message ExperimentMetadataResponse {
+    string experiment_id = 1;
+    string created_dttm = 2;
+    string last_changed_dttm = 3;
+    string model_filename = 4;
+    string name = 5;
+    string origin_experiment_id = 6;
+    string parent_experiment_id = 7;
+    bool template_flg = 8;
+}
+
+message BasicSuccessResponse {
+    bool success = 1;
+    string msg = 2;
+}
+
+message BasicExperimentResponse {
+    string experiment_id = 1;
+}
+
+message PredictResponse {
+    repeated float predictions = 1;
+}
+
+service ModelManagerGRPC {
+    rpc ListExperiments(google.protobuf.Empty) returns (ListExperimentsResponse);
+    rpc BranchExperiment(BranchExperimentRequest) returns (BasicExperimentResponse);
+    rpc SelectExperiment(SelectExperimentRequest) returns (BasicSuccessResponse);
+    rpc SaveExperiment(google.protobuf.Empty) returns (BasicSuccessResponse);
+    rpc Seed(SeedRequest) returns (BasicSuccessResponse);
+    rpc Fit(FitRequest) returns (BasicSuccessResponse);
+    rpc Predict(PredictRequest) returns (PredictResponse);
+    rpc Health(google.protobuf.Empty) returns (BasicSuccessResponse);
+}
+
+message ListExperimentsResponse {
+    repeated ExperimentMetadataResponse experiments = 1;
+}
+
+message BranchExperimentRequest {
+    string experiment_id = 1;
+    string name = 2;
+}
+
+message SelectExperimentRequest {
+    string experiment_id = 1;
+}
+
+message SeedRequest {
+    int32 value = 1;
+}
