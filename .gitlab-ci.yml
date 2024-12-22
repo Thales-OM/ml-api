@@ -11,7 +11,7 @@ variables:
   FORMAT_COMMAND: "black ."
   BUILD_DOCKER_IMAGE_NAME: "ml-api-ml-api"
   TARGET_DOCKER_IMAGE_NAME: "ml-api"
-  VERSION: "0.2.0"
+  VERSION: "0.3.0"
 
 test:
   stage: test
@@ -71,8 +71,8 @@ push:
     - docker:dind
   script:
       - docker tag $BUILD_DOCKER_IMAGE_NAME $TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
-    - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
-    - docker push $DOCKER_IMAGE_NAME:$VERSION
-    - docker push $DOCKER_IMAGE_NAME:latest
+      - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+      - docker push $DOCKER_IMAGE_NAME:$VERSION
+      - docker push $DOCKER_IMAGE_NAME:latest
   only:
     - merge_requests # Push to Docker Hub only upon successful merge to master
