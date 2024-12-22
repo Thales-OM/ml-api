@@ -2,7 +2,7 @@ import logging
 import pytest
 
 def pytest_configure():
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] [%(levelname)s] %(message)s')
 
 @pytest.fixture(autouse=True)
 def log_test_start(request):
