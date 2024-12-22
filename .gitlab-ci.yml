@@ -19,6 +19,7 @@ test:
     - ml-api
   script:
     - python -m venv .venv
+    - chmod +x .venv/bin/activate
     - .venv/bin/activate
     - pip install --upgrade pip
     - poetry install --no-root --no-dev
