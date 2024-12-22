@@ -18,6 +18,10 @@ test:
   tags: 
     - ml-api
   script:
+    - python -m venv .venv
+    - .venv/bin/activate
+    - pip install --upgrade pip
+    - poetry install --no-root --no-dev
     - pip install poetry  # Install Poetry
     - poetry install  # Install dependencies defined in pyproject.toml
     - pip install pytest  # Install pytest
