@@ -1,12 +1,28 @@
-image: python:latest
+image: python:3.12.6-slim
 
 stages:
+  - test
   - lint
   - format
+  - deploy
 
 variables:
   LINT_COMMAND: "flake8 ."
   FORMAT_COMMAND: "black ."
+  BUILD_DOCKER_IMAGE_NAME: "ml-api-ml-api"
+  TARGET_DOCKER_IMAGE_NAME: "ml-api"
+  VERSION: "0.2.0"
+
+test:
+  stage: test
+  script:
+    - pip install poetry  # Install Poetry
+    - poetry install  # Install dependencies defined in pyproject.toml
+    - pip install pytest  # Install pytest
+    - pytest ./tests/local  # Run pytest in the local tests directory
+  allow_failure: false
+  only:
+    - merge_requests
 
 lint:
   stage: lint
@@ -14,6 +30,8 @@ lint:
     - pip install flake8
     - $LINT_COMMAND
   allow_failure: true
+  only:
+    - merge_requests
 
 format:
   stage: format
@@ -21,6 +39,8 @@ format:
     - pip install black
     - $FORMAT_COMMAND --check
   allow_failure: true
+  only:
+    - merge_requests
 
 format-fix:
   stage: format
@@ -32,5 +52,27 @@ format-fix:
     - git add .
     - git commit -m "Format code with black"
   only:
-    - master
+    - merge_requests
   when: manual
+
+build:
+  stage: deploy
+  services: 
+    - docker:dind
+  script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
+    - docker-compose build
+  only:
+    - merge_requests # Push to Docker Hub only upon successful merge to master
+
+push:
+  stage: deploy
+  services: 
+    - docker:dind
+  script:
+      - docker tag $BUILD_DOCKER_IMAGE_NAME $TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
+    - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+    - docker push $DOCKER_IMAGE_NAME:$VERSION
+    - docker push $DOCKER_IMAGE_NAME:latest
+  only:
+    - merge_requests # Push to Docker Hub only upon successful merge to master

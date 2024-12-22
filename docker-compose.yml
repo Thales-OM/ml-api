@@ -1,5 +1,6 @@
 services:
   ml-api:
+    container_name: ml-api
     build: .
     # volumes:
       # - ml-api_data: ./__main_project__
