@@ -13,7 +13,7 @@ import random
 from datetime import datetime
 # from config import RESTRICTED_METADATA_FIELDS
 from .utils import set_status
-from clearml import Task
+from clearml_safe.task import SafeTask
 
 
 class Experiment():
@@ -61,10 +61,10 @@ class Experiment():
             # Store datasets in memory as  numpy.ndarray
             self.X_train, self.y_train, self.X_test, self.y_test = np.asarray(X_train), np.asarray(y_train), np.asarray(X_test), np.asarray(y_test)
             # ClearML integration
-            self.task = Task.init(project_name="ML-API", task_name=str(self.id))
+            self.task = SafeTask.init(project_name="ML-API", task_name=str(self.id))
             self._initialized = True
             self.status = 'Ready'
-    
+
     @staticmethod
     def seed(value: Any) -> None:
         """Ensures reproducibility by setting seed for all used libraries"""
@@ -92,6 +92,9 @@ class Experiment():
         # Record dataset (store in memory as numpy.ndarray)
         self.X_train, self.y_train = np.asarray(X_train), np.asarray(y_train)
 
+        # Ensure params and optim_args are not None for ** unwrap
+        params = params if params is not None else {}
+        optim_args = optim_args if optim_args is not None else {}
         # Determine model type and call corresponding fit method
         if isinstance(self.model, BaseEstimator):
             # Log hyperparameters
