@@ -67,6 +67,8 @@ build:
   stage: deploy
   tags: 
     - ml-api
+  before_script:
+    - docker system prune -af  # Clean up unused Docker resources
   script:
     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
     - docker-compose build
@@ -75,7 +77,7 @@ build:
     paths:
       - image.tar  # Save the tar file as an artifact
   only:
-    - merge_requests # Push to Docker Hub only upon successful merge to master
+    - merge_requests
 
 push:
   stage: deploy
@@ -89,4 +91,4 @@ push:
       - docker push $DOCKER_IMAGE_NAME:$VERSION
       - docker push $DOCKER_IMAGE_NAME:latest
   only:
-    - merge_requests # Push to Docker Hub only upon successful merge to master
+    - merge_requests # По-хорошему этот джоб должен запускаться только при коммите в мастер но оставлю для демонстрации
