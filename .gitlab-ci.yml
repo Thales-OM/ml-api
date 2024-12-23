@@ -14,6 +14,7 @@ variables:
   FORMAT_COMMAND: "black ."
   BUILD_DOCKER_IMAGE_NAME: "ml-api-ml-api"
   TARGET_DOCKER_IMAGE_NAME: "ml-api"
+  DOCKER_REGISTRY_NAME: "thalesom"
   VERSION: "0.3.0"
   DOCKER_DRIVER: overlay2  # Use overlay2 storage driver for Docker
 
@@ -72,10 +73,10 @@ build_push:
   script:
     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
     - docker-compose build
-    - docker tag $BUILD_DOCKER_IMAGE_NAME $TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
-    - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
-    - docker push $DOCKER_IMAGE_NAME:$VERSION
-    - docker push $DOCKER_IMAGE_NAME:latest
+    - docker tag $BUILD_DOCKER_IMAGE_NAME $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
+    - docker tag $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+    - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION
+    - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest
   only:
     - merge_requests # По-хорошему этот джоб должен запускаться только при коммите в мастер но оставлю для демонстрации
 
@@ -106,9 +107,9 @@ build_push:
 #   script:
 #       - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
 #       - docker load -i image.tar  # Load the image from the tar file
-#       - docker tag $BUILD_DOCKER_IMAGE_NAME $TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
-#       - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
-#       - docker push $DOCKER_IMAGE_NAME:$VERSION
-#       - docker push $DOCKER_IMAGE_NAME:latest
+#       - docker tag $BUILD_DOCKER_IMAGE_NAME $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
+#       - docker tag $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+#       - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION
+#       - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest
 #   only:
 #     - merge_requests
