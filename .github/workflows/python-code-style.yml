@@ -1,0 +1,72 @@
+name: Python Code Style
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      run_format_fix:
+        description: 'Run format-fix job'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12.6'
+      - name: Install flake8
+        run: pip install flake8
+      - name: Run flake8
+        run: flake8 .
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12.6'
+      - name: Install black
+        run: pip install black
+      - name: Run black
+        run: black . --check
+
+  format-fix:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.run_format_fix == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}  # Checkout the source branch of the PR
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12.6'
+      - name: Install black
+        run: pip install black
+      - name: Run black
+        run: black .
+      - name: Commit changes
+        run: |
+          git config --local user.name "CI Bot"
+          git config --local user.email "ci-bot@example.com"
+          git add .
+          git commit -m "Format code with black"
+          git push origin ${{ github.head_ref }}  # Push to the source branch of the PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

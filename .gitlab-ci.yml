@@ -1,0 +1,115 @@
+image: docker:latest
+
+services:
+  - docker:dind  # Enable Docker-in-Docker
+
+stages:
+  - test
+  - lint
+  - format
+  - deploy
+
+variables:
+  LINT_COMMAND: "flake8 ."
+  FORMAT_COMMAND: "black ."
+  BUILD_DOCKER_IMAGE_NAME: "ml-api-ml-api"
+  TARGET_DOCKER_IMAGE_NAME: "ml-api"
+  DOCKER_REGISTRY_NAME: "thalesom"
+  VERSION: "0.3.0"
+  DOCKER_DRIVER: overlay2  # Use overlay2 storage driver for Docker
+
+test:
+  stage: test
+  image: python:3.12.6-slim
+  tags: 
+    - ml-api
+  script:
+    - pip install --upgrade pip
+    - pip install poetry  # Install Poetry
+    - poetry install --no-root --no-dev  # Install dependencies defined in pyproject.toml
+    - export PYTHONPATH=$(pwd)  # Set PYTHONPATH to the project root
+    - poetry run pytest -v ./tests/local  # Run pytest in the local tests directory using Poetry
+  allow_failure: false
+  only:
+    - merge_requests
+
+lint:
+  stage: lint
+  script:
+    - pip install flake8
+    - $LINT_COMMAND
+  allow_failure: true
+  only:
+    - merge_requests
+
+format:
+  stage: format
+  script:
+    - pip install black
+    - $FORMAT_COMMAND --check
+  allow_failure: true
+  only:
+    - merge_requests
+
+format-fix:
+  stage: format
+  script:
+    - pip install black
+    - $FORMAT_COMMAND
+    - git config --global user.email "project65339238_bot@noreply.gitlab.com"
+    - git config --global user.name "CI Bot"
+    - git add .
+    - git commit -m "Format code with black"
+  only:
+    - merge_requests
+  when: manual
+
+build_push:
+  stage: deploy
+  tags: 
+    - ml-api
+  before_script:
+    - docker system prune -af  # Clean up unused Docker resources
+  script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
+    - docker-compose build
+    - docker tag $BUILD_DOCKER_IMAGE_NAME $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
+    - docker tag $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+    - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION
+    - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest
+  only:
+    - merge_requests # По-хорошему этот джоб должен запускаться только при коммите в мастер но оставлю для демонстрации
+
+# попытался разделить джобы build и push но ловлю ошибку при попытке загрузить артефакт:
+# ERROR: Uploading artifacts as "archive" to coordinator... error  error=couldn't execute POST against http://176.109.106.109/api/v4/jobs/328/artifacts?artifact_format=zip&artifact_type=archive: Post "http://176.109.106.109/api/v4/jobs/328/artifacts?artifact_format=zip&artifact_type=archive": write tcp 172.17.0.3:37214->176.109.106.109:80: use of closed network connection id=328 token=glcbt-64
+# WARNING: Retrying...                                context=artifacts-uploader error=invalid argument
+
+# build:
+#   stage: deploy
+#   tags: 
+#     - ml-api
+#   before_script:
+#     - docker system prune -af  # Clean up unused Docker resources
+#   script:
+#     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
+#     - docker-compose build
+#     - docker save $BUILD_DOCKER_IMAGE_NAME -o image.tar  # Save the image to a tar file
+#   artifacts:
+#     paths:
+#       - image.tar  # Save the tar file as an artifact
+#   only:
+#     - merge_requests
+
+# push:
+#   stage: deploy
+#   tags: 
+#     - ml-api
+#   script:
+#       - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
+#       - docker load -i image.tar  # Load the image from the tar file
+#       - docker tag $BUILD_DOCKER_IMAGE_NAME $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
+#       - docker tag $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
+#       - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:$VERSION
+#       - docker push $DOCKER_REGISTRY_NAME/$TARGET_DOCKER_IMAGE_NAME:latest
+#   only:
+#     - merge_requests
