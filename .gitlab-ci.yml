@@ -18,15 +18,11 @@ test:
   tags: 
     - ml-api
   script:
-    - python -m venv .venv # Create a local virtual environment
-    - chmod +x .venv/bin/activate
-    - .venv/bin/activate
     - pip install --upgrade pip
     - pip install poetry  # Install Poetry
-    - poetry install --no-root --no-dev
-    - poetry install  # Install dependencies defined in pyproject.toml
-    - pip install pytest  # Install pytest
-    - pytest ./tests/local  # Run pytest in the local tests directory
+    - poetry install --no-root --no-dev  # Install dependencies defined in pyproject.toml
+    - export PYTHONPATH=$(pwd)  # Set PYTHONPATH to the project root
+    - poetry run pytest -v ./tests/local  # Run pytest in the local tests directory using Poetry
   allow_failure: false
   only:
     - merge_requests
