@@ -1,4 +1,7 @@
-image: python:3.12.6-slim
+image: docker:latest
+
+services:
+  - docker:dind  # Enable Docker-in-Docker
 
 stages:
   - test
@@ -12,9 +15,11 @@ variables:
   BUILD_DOCKER_IMAGE_NAME: "ml-api-ml-api"
   TARGET_DOCKER_IMAGE_NAME: "ml-api"
   VERSION: "0.3.0"
+  DOCKER_DRIVER: overlay2  # Use overlay2 storage driver for Docker
 
 test:
   stage: test
+  image: python:3.12.6-slim
   tags: 
     - ml-api
   script:
