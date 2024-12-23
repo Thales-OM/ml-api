@@ -67,11 +67,13 @@ build:
   stage: deploy
   tags: 
     - ml-api
-  services: 
-    - docker:dind
   script:
     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
     - docker-compose build
+    - docker save $BUILD_DOCKER_IMAGE_NAME -o image.tar  # Save the image to a tar file
+  artifacts:
+    paths:
+      - image.tar  # Save the tar file as an artifact
   only:
     - merge_requests # Push to Docker Hub only upon successful merge to master
 
@@ -79,9 +81,9 @@ push:
   stage: deploy
   tags: 
     - ml-api
-  services: 
-    - docker:dind
   script:
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin 
+      - docker load -i image.tar  # Load the image from the tar file
       - docker tag $BUILD_DOCKER_IMAGE_NAME $TARGET_DOCKER_IMAGE_NAME:$VERSION  # Tag the image with the current version
       - docker tag $TARGET_DOCKER_IMAGE_NAME:$VERSION $TARGET_DOCKER_IMAGE_NAME:latest  # Tag the image as latest
       - docker push $DOCKER_IMAGE_NAME:$VERSION
